@@ -23,6 +23,17 @@ pub enum Resolution {
     EightBit,
 }
 
+#[allow(missing_docs)]
+#[cfg(adc_40v1_U5)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum Resolution {
+    FourteenBit,
+    TwelveBit,
+    TenBit,
+    EightBit,
+}
+
 impl Default for Resolution {
     fn default() -> Self {
         #[cfg(any(adc_v1, adc_v2, adc_v3, adc_g0, adc_f3, adc_f3_v1_1))]
@@ -32,6 +43,10 @@ impl Default for Resolution {
         #[cfg(adc_v4)]
         {
             Self::SixteenBit
+        }
+        #[cfg(adc_40v1_U5)]
+        {
+            Self::FourteenBit
         }
     }
 }
@@ -43,6 +58,8 @@ impl From<Resolution> for crate::pac::adc::vals::Res {
             Resolution::SixteenBit => crate::pac::adc::vals::Res::SIXTEENBIT,
             #[cfg(adc_v4)]
             Resolution::FourteenBit => crate::pac::adc::vals::Res::FOURTEENBITV,
+            #[cfg(adc_40v1_U5)]
+            Resolution::FourteenBit => crate::pac::adc::vals::Res::FOURTEENBIT,
             Resolution::TwelveBit => crate::pac::adc::vals::Res::TWELVEBIT,
             Resolution::TenBit => crate::pac::adc::vals::Res::TENBIT,
             Resolution::EightBit => crate::pac::adc::vals::Res::EIGHTBIT,
@@ -60,7 +77,7 @@ impl Resolution {
         match self {
             #[cfg(adc_v4)]
             Resolution::SixteenBit => (1 << 16) - 1,
-            #[cfg(adc_v4)]
+            #[cfg(any(adc_v4, adc_40v1_U5))]
             Resolution::FourteenBit => (1 << 14) - 1,
             Resolution::TwelveBit => (1 << 12) - 1,
             Resolution::TenBit => (1 << 10) - 1,

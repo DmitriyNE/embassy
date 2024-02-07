@@ -11,6 +11,7 @@
 #[cfg_attr(adc_v2, path = "v2.rs")]
 #[cfg_attr(any(adc_v3, adc_g0), path = "v3.rs")]
 #[cfg_attr(adc_v4, path = "v4.rs")]
+#[cfg_attr(adc_40v1_U5, path = "40v1_U5.rs")]
 mod _version;
 
 #[cfg(not(any(adc_f1, adc_f3_v2)))]
@@ -58,7 +59,12 @@ pub(crate) mod sealed {
     }
 
     pub trait Instance: InterruptableInstance {
+        #[cfg(not(adc_40v1_U5))]
         fn regs() -> crate::pac::adc::Adc;
+
+        #[cfg(adc_40v1_U5)]
+        fn regs() -> crate::pac::adc::Adc1;
+
         #[cfg(not(any(adc_f1, adc_v1, adc_f3_v2, adc_f3_v1_1, adc_g0)))]
         fn common_regs() -> crate::pac::adccommon::AdcCommon;
         #[cfg(any(adc_f1, adc_f3, adc_v1, adc_f3_v1_1))]
@@ -78,10 +84,10 @@ pub(crate) mod sealed {
 }
 
 /// ADC instance.
-#[cfg(not(any(adc_f1, adc_v1, adc_v2, adc_v3, adc_v4, adc_f3, adc_f3_v1_1, adc_g0)))]
+#[cfg(not(any(adc_f1, adc_v1, adc_v2, adc_v3, adc_v4, adc_40v1_U5, adc_f3, adc_f3_v1_1, adc_g0)))]
 pub trait Instance: sealed::Instance + crate::Peripheral<P = Self> {}
 /// ADC instance.
-#[cfg(any(adc_f1, adc_v1, adc_v2, adc_v3, adc_v4, adc_f3, adc_f3_v1_1, adc_g0))]
+#[cfg(any(adc_f1, adc_v1, adc_v2, adc_v3, adc_v4, adc_f3, adc_f3_v1_1, adc_g0, adc_40v1_U5))]
 pub trait Instance: sealed::Instance + crate::Peripheral<P = Self> + crate::rcc::RccPeripheral {}
 
 /// ADC pin.
@@ -92,7 +98,13 @@ pub trait InternalChannel<T>: sealed::InternalChannel<T> {}
 foreach_adc!(
     ($inst:ident, $common_inst:ident, $clock:ident) => {
         impl crate::adc::sealed::Instance for peripherals::$inst {
+            #[cfg(not(adc_40v1_U5))]
             fn regs() -> crate::pac::adc::Adc {
+                crate::pac::$inst
+            }
+
+            #[cfg(adc_40v1_U5)]
+            fn regs() -> crate::pac::adc::Adc1 {
                 crate::pac::$inst
             }
 
@@ -108,6 +120,7 @@ foreach_adc!(
             }
         }
 
+        #[cfg(not(any(adc_40v1_U5)))]
         foreach_interrupt!(
             ($inst,adc,ADC,GLOBAL,$irq:ident) => {
                 impl sealed::InterruptableInstance for peripherals::$inst {
@@ -116,6 +129,14 @@ foreach_adc!(
             };
         );
 
+        #[cfg(any(adc_40v1_U5))]
+        foreach_interrupt!(
+            ($inst,adc,ADC1,GLOBAL,$irq:ident) => {
+                impl sealed::InterruptableInstance for peripherals::$inst {
+                    type Interrupt = crate::interrupt::typelevel::$irq;
+                }
+            };
+        );
         impl crate::adc::Instance for peripherals::$inst {}
     };
 );

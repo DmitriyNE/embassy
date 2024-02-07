@@ -146,3 +146,19 @@ impl_sample_time!(
         ("384", Cycles384, CYCLES384)
     )
 );
+
+#[cfg(any(adc_40v1_U5))]
+impl_sample_time!(
+    "5",
+    Cycles5,
+    (
+        ("5", Cycles5, CYCLES5),
+        ("6", Cycles6, CYCLES6),
+        ("12", Cycles12, CYCLES12),
+        ("20", Cycles20, CYCLES20),
+        ("36", Cycles36, CYCLES36),
+        ("68", Cycles68, CYCLES68),
+        ("391", Cycles391, CYCLES391),
+        ("814", Cycles814, CYCLES814)
+    )
+);
