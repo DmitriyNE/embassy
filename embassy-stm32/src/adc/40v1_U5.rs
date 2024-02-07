@@ -161,6 +161,14 @@ impl<'d, T: Instance> Adc<'d, T> {
     }
 
     fn power_up(&mut self, delay: &mut impl DelayUs<u16>) {
+        // TODO: This does not belong here
+        // Enable Vdda load switches
+        pac::PWR.svmcr().modify(|w| w.set_asv(true));
+        // Enable power to VREFBUF
+        pac::RCC.apb3enr().modify(|w| w.set_vrefen(true));
+        // Power up VREFBUF
+        pac::VREFBUF.csr().write(|w| w.set_envr(true));
+
         T::regs().cr().modify(|reg| {
             reg.set_deeppwd(false);
             reg.set_advregen(true);
@@ -274,7 +282,7 @@ impl<'d, T: Instance> Adc<'d, T> {
         self.read_channel(channel.channel())
     }
 
-    fn read_channel(&mut self, channel: u8) -> u16 {
+    pub fn read_channel(&mut self, channel: u8) -> u16 {
         // Configure channel
         Self::set_channel_sample_time(channel, self.sample_time);
 
