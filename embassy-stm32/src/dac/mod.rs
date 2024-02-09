@@ -136,8 +136,8 @@ impl<'d, T: Instance, const N: u8, DMA> DacChannel<'d, T, N, DMA> {
             phantom: PhantomData,
             dma,
         };
-        #[cfg(any(dac_v5, dac_v6, dac_v7))]
-        dac.set_hfsel();
+        //#[cfg(any(dac_v5, dac_v6, dac_v7))]
+        //dac.set_hfsel();
         dac.enable();
         dac
     }
