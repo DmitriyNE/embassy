@@ -286,13 +286,10 @@ impl<'d, T: Instance> Adc<'d, T> {
         // Configure channel
         Self::set_channel_sample_time(channel, self.sample_time);
 
-        #[cfg(stm32h7)]
-        {
-            T::regs().cfgr2().modify(|w| w.set_lshift(0));
-            T::regs()
-                .pcsel()
-                .write(|w| w.set_pcsel(channel as _, Pcsel::PRESELECTED));
-        }
+        T::regs().cfgr2().modify(|w| w.set_lshift(0));
+        T::regs()
+            .pcsel()
+            .write(|w| w.set_pcsel(channel as _, Pcsel::PRESELECTED));
 
         T::regs().sqr1().write(|reg| {
             reg.set_sq(0, channel);
