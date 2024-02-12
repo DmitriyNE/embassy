@@ -247,8 +247,16 @@ impl<'d, T: Instance> Adc<'d, T> {
         T::regs().cfgr().modify(|reg| reg.set_res(resolution.into()));
     }
 
+    pub fn set_oversampling(&mut self, oversampling_factor: u16) {
+        assert!(
+            oversampling_factor < 1024,
+            "Oversampling factor should be less than 1024"
+        );
+        T::regs().cfgr2().write(|w| w.set_osr(oversampling_factor));
+    }
+
     /// Perform a single conversion.
-    fn convert(&mut self) -> u16 {
+    fn convert(&mut self) -> u32 {
         T::regs().isr().modify(|reg| {
             reg.set_eos(true);
             reg.set_eoc(true);
@@ -263,11 +271,11 @@ impl<'d, T: Instance> Adc<'d, T> {
             // spin
         }
 
-        T::regs().dr().read().0 as u16
+        T::regs().dr().read().0 as u32
     }
 
     /// Read an ADC pin.
-    pub fn read<P>(&mut self, pin: &mut P) -> u16
+    pub fn read<P>(&mut self, pin: &mut P) -> u32
     where
         P: AdcPin<T>,
         P: crate::gpio::sealed::Pin,
@@ -278,11 +286,11 @@ impl<'d, T: Instance> Adc<'d, T> {
     }
 
     /// Read an ADC internal channel.
-    pub fn read_internal(&mut self, channel: &mut impl InternalChannel<T>) -> u16 {
+    pub fn read_internal(&mut self, channel: &mut impl InternalChannel<T>) -> u32 {
         self.read_channel(channel.channel())
     }
 
-    pub fn read_channel(&mut self, channel: u8) -> u16 {
+    pub fn read_channel(&mut self, channel: u8) -> u32 {
         // Configure channel
         Self::set_channel_sample_time(channel, self.sample_time);
 
