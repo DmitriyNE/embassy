@@ -254,7 +254,7 @@ impl<'d, T: Instance> Adc<'d, T> {
         );
         T::regs().cfgr2().modify(|w| {
             w.set_osr(oversampling_factor);
-            w.set_rovse(true)
+            w.set_rovse(oversampling_factor != 0)
         });
     }
 
