@@ -252,7 +252,10 @@ impl<'d, T: Instance> Adc<'d, T> {
             oversampling_factor < 1024,
             "Oversampling factor should be less than 1024"
         );
-        T::regs().cfgr2().write(|w| w.set_osr(oversampling_factor));
+        T::regs().cfgr2().modify(|w| {
+            w.set_osr(oversampling_factor);
+            w.set_rovse(true)
+        });
     }
 
     /// Perform a single conversion.
