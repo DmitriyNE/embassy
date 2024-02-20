@@ -19,12 +19,59 @@ use crate::pac::gpdma::vals;
 /// GPDMA transfer options.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[non_exhaustive]
-pub struct TransferOptions {}
+pub enum ChannelTriggerGranularity {
+    Block = 0,
+    Block2D = 1,
+    LinkedListSegment = 2,
+    Burst = 3,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum ChannelTriggerGenerationGranularity {
+    Block = 0,
+    Block2D = 1,
+    LinkedListSegment = 2,
+    LastSegment = 3,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum ChannelPriority {
+    LowPriorityLowWeight = 0,
+    LowPriorityMidWeight = 1,
+    LowPriorityHighWeigth = 2,
+    HighPriority = 3,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum GpDmaAhbMasterPort {
+    Port0 = 0,
+    Port1 = 1,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct TransferOptions {
+    pub trigger: Option<u8>,
+    pub trigger_granularity: ChannelTriggerGranularity,
+    pub trigger_generation_granularity: ChannelTriggerGenerationGranularity,
+    pub priority: ChannelPriority,
+    pub source_port: GpDmaAhbMasterPort,
+    pub destination_port: GpDmaAhbMasterPort,
+}
 
 impl Default for TransferOptions {
     fn default() -> Self {
-        Self {}
+        Self {
+            trigger: None,
+            trigger_granularity: ChannelTriggerGranularity::Block,
+            trigger_generation_granularity: ChannelTriggerGenerationGranularity::LastSegment,
+            priority: ChannelPriority::LowPriorityLowWeight,
+            source_port: GpDmaAhbMasterPort::Port0,
+            destination_port: GpDmaAhbMasterPort::Port1,
+        }
     }
 }
 
@@ -143,6 +190,7 @@ pub struct Transfer<'a, C: Channel> {
 
 impl<'a, C: Channel> Transfer<'a, C> {
     /// Create a new read DMA transfer (peripheral to memory).
+    /// request = None for mem-2-mem transfer
     pub unsafe fn new_read<W: Word>(
         channel: impl Peripheral<P = C> + 'a,
         request: Request,
@@ -168,7 +216,7 @@ impl<'a, C: Channel> Transfer<'a, C> {
 
         Self::new_inner(
             channel,
-            request,
+            Some(request),
             Dir::PeripheralToMemory,
             peri_addr as *const u32,
             ptr as *mut u32,
@@ -190,6 +238,16 @@ impl<'a, C: Channel> Transfer<'a, C> {
         Self::new_write_raw(channel, request, buf, peri_addr, options)
     }
 
+    /// Create a new write DMA transfer with sw request (memory to memory).
+    pub unsafe fn new_write_swreq<W: Word>(
+        channel: impl Peripheral<P = C> + 'a,
+        buf: &'a [W],
+        peri_addr: *mut W,
+        options: TransferOptions,
+    ) -> Self {
+        Self::new_write_raw_swreq(channel, buf, peri_addr, options)
+    }
+
     /// Create a new write DMA transfer (memory to peripheral), using raw pointers.
     pub unsafe fn new_write_raw<W: Word>(
         channel: impl Peripheral<P = C> + 'a,
@@ -205,7 +263,32 @@ impl<'a, C: Channel> Transfer<'a, C> {
 
         Self::new_inner(
             channel,
-            request,
+            Some(request),
+            Dir::MemoryToPeripheral,
+            peri_addr as *const u32,
+            ptr as *mut u32,
+            len,
+            true,
+            W::size(),
+            options,
+        )
+    }
+
+    /// Create a new write DMA transfer (memory to peripheral), using raw pointers.
+    pub unsafe fn new_write_raw_swreq<W: Word>(
+        channel: impl Peripheral<P = C> + 'a,
+        buf: *const [W],
+        peri_addr: *mut W,
+        options: TransferOptions,
+    ) -> Self {
+        into_ref!(channel);
+
+        let (ptr, len) = super::slice_ptr_parts(buf);
+        assert!(len > 0 && len <= 0xFFFF);
+
+        Self::new_inner(
+            channel,
+            None,
             Dir::MemoryToPeripheral,
             peri_addr as *const u32,
             ptr as *mut u32,
@@ -229,7 +312,7 @@ impl<'a, C: Channel> Transfer<'a, C> {
 
         Self::new_inner(
             channel,
-            request,
+            Some(request),
             Dir::MemoryToPeripheral,
             peri_addr as *const u32,
             repeated as *const W as *mut u32,
@@ -242,14 +325,14 @@ impl<'a, C: Channel> Transfer<'a, C> {
 
     unsafe fn new_inner(
         channel: PeripheralRef<'a, C>,
-        request: Request,
+        request: Option<Request>,
         dir: Dir,
         peri_addr: *const u32,
         mem_addr: *mut u32,
         mem_len: usize,
         incr_mem: bool,
         data_size: WordSize,
-        _options: TransferOptions,
+        options: TransferOptions,
     ) -> Self {
         let ch = channel.regs().ch(channel.num());
 
@@ -269,13 +352,25 @@ impl<'a, C: Channel> Transfer<'a, C> {
             w.set_ddw(data_size.into());
             w.set_sinc(dir == Dir::MemoryToPeripheral && incr_mem);
             w.set_dinc(dir == Dir::PeripheralToMemory && incr_mem);
+            w.set_sap((options.source_port as u8).into());
+            w.set_dap((options.destination_port as u8).into());
         });
         ch.tr2().write(|w| {
             w.set_dreq(match dir {
                 Dir::MemoryToPeripheral => vals::ChTr2Dreq::DESTINATIONPERIPHERAL,
                 Dir::PeripheralToMemory => vals::ChTr2Dreq::SOURCEPERIPHERAL,
             });
-            w.set_reqsel(request);
+            if let Some(request) = request {
+                w.set_reqsel(request);
+            } else {
+                w.set_swreq(vals::ChTr2Swreq::SOFTWARE);
+            }
+            w.set_tcem((options.trigger_generation_granularity as u8).into());
+            if let Some(trigger) = options.trigger {
+                w.set_trigsel(trigger);
+                w.set_trigpol(1.into());
+                w.set_trigm((options.trigger_granularity as u8).into());
+            }
         });
         ch.br1().write(|w| {
             // BNDT is specified as bytes, not as number of transfers.
@@ -299,7 +394,10 @@ impl<'a, C: Channel> Transfer<'a, C> {
             w.set_useie(true);
             w.set_dteie(true);
             w.set_suspie(true);
+            w.set_prio((options.priority as u8).into());
+        });
 
+        ch.cr().modify(|w| {
             // Start it
             w.set_en(true);
         });
