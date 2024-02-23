@@ -33,6 +33,8 @@ pub struct InterruptHandler<T: BasicInstance> {
     _phantom: PhantomData<T>,
 }
 
+use cortex_m_semihosting::hprintln;
+
 impl<T: BasicInstance> interrupt::typelevel::Handler<T::Interrupt> for InterruptHandler<T> {
     unsafe fn on_interrupt() {
         let r = T::regs();
@@ -556,6 +558,7 @@ impl<'d, T: BasicInstance, RxDma> UartRx<'d, T, RxDma> {
         if !self.detect_previous_overrun {
             let sr = sr(r).read();
             // This read also clears the error and idle interrupt flags on v1.
+            hprintln!("A");
             // unsafe { rdr(r).read_volatile() };
             clear_interrupt_flags(r, sr);
         }
@@ -590,6 +593,7 @@ impl<'d, T: BasicInstance, RxDma> UartRx<'d, T, RxDma> {
 
             let sr = sr(r).read();
             // This read also clears the error and idle interrupt flags on v1.
+            hprintln!("B");
             // unsafe { rdr(r).read_volatile() };
             clear_interrupt_flags(r, sr);
 
@@ -613,6 +617,7 @@ impl<'d, T: BasicInstance, RxDma> UartRx<'d, T, RxDma> {
             // clear idle flag
             let sr = sr(r).read();
             // This read also clears the error and idle interrupt flags on v1.
+            hprintln!("C");
             // unsafe { rdr(r).read_volatile() };
             clear_interrupt_flags(r, sr);
 
@@ -633,6 +638,7 @@ impl<'d, T: BasicInstance, RxDma> UartRx<'d, T, RxDma> {
             let sr = sr(r).read();
 
             // This read also clears the error and idle interrupt flags on v1.
+            hprintln!("D");
             // unsafe { rdr(r).read_volatile() };
             clear_interrupt_flags(r, sr);
 
