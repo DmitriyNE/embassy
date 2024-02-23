@@ -556,7 +556,7 @@ impl<'d, T: BasicInstance, RxDma> UartRx<'d, T, RxDma> {
         if !self.detect_previous_overrun {
             let sr = sr(r).read();
             // This read also clears the error and idle interrupt flags on v1.
-            unsafe { rdr(r).read_volatile() };
+            // unsafe { rdr(r).read_volatile() };
             clear_interrupt_flags(r, sr);
         }
 
@@ -590,7 +590,7 @@ impl<'d, T: BasicInstance, RxDma> UartRx<'d, T, RxDma> {
 
             let sr = sr(r).read();
             // This read also clears the error and idle interrupt flags on v1.
-            unsafe { rdr(r).read_volatile() };
+            // unsafe { rdr(r).read_volatile() };
             clear_interrupt_flags(r, sr);
 
             if sr.pe() {
@@ -613,7 +613,7 @@ impl<'d, T: BasicInstance, RxDma> UartRx<'d, T, RxDma> {
             // clear idle flag
             let sr = sr(r).read();
             // This read also clears the error and idle interrupt flags on v1.
-            unsafe { rdr(r).read_volatile() };
+            // unsafe { rdr(r).read_volatile() };
             clear_interrupt_flags(r, sr);
 
             // enable idle interrupt
@@ -633,7 +633,7 @@ impl<'d, T: BasicInstance, RxDma> UartRx<'d, T, RxDma> {
             let sr = sr(r).read();
 
             // This read also clears the error and idle interrupt flags on v1.
-            unsafe { rdr(r).read_volatile() };
+            // unsafe { rdr(r).read_volatile() };
             clear_interrupt_flags(r, sr);
 
             if enable_idle_line_detection {
