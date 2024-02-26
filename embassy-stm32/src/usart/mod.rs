@@ -562,6 +562,11 @@ impl<'d, T: BasicInstance, RxDma> UartRx<'d, T, RxDma> {
             unsafe {
                 rdr(r).read_volatile()
             };
+
+            #[cfg(usart_v4)]
+            if sr.ore() {
+                unsafe { rdr(r).read_volatile() };
+            }
             clear_interrupt_flags(r, sr);
         }
 
@@ -599,6 +604,12 @@ impl<'d, T: BasicInstance, RxDma> UartRx<'d, T, RxDma> {
             unsafe {
                 rdr(r).read_volatile()
             };
+
+            #[cfg(usart_v4)]
+            if sr.ore() {
+                unsafe { rdr(r).read_volatile() };
+            }
+
             clear_interrupt_flags(r, sr);
 
             if sr.pe() {
