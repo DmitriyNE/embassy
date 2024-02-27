@@ -706,9 +706,11 @@ impl<'d, T: BasicInstance, RxDma> UartRx<'d, T, RxDma> {
             Either::Left(((), _)) => Ok(ReadCompletionEvent::DmaCompleted),
 
             // Idle line detected first
-            Either::Right((Ok(()), transfer)) => Ok(ReadCompletionEvent::Idle(
-                buffer_len - transfer.get_remaining_transfers() as usize,
-            )),
+            Either::Right((Ok(()), mut transfer)) => Ok(ReadCompletionEvent::Idle({
+                transfer.request_stop();
+                while transfer.is_running() {}
+                buffer_len - transfer.get_remaining_transfers() as usize
+            })),
 
             // error occurred
             Either::Right((Err(e), _)) => Err(e),
