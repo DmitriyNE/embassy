@@ -16,6 +16,8 @@ use crate::interrupt::Priority;
 use crate::pac;
 use crate::pac::gpdma::vals;
 
+use cortex_m_semihosting::hprintln;
+
 /// GPDMA transfer options.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -345,6 +347,10 @@ impl<'a, C: Channel> Transfer<'a, C> {
         super::dmamux::configure_dmamux(&mut *this.channel, request);
 
         ch.cr().write(|w| w.set_reset(true));
+        if ch.cr().read().en() {
+            hprintln!("DMA was not in reset");
+            while ch.cr().read().en() {}
+        }
         ch.fcr().write(|w| w.0 = 0xFFFF_FFFF); // clear all irqs
         ch.llr().write(|_| {}); // no linked list
         ch.tr1().write(|w| {
