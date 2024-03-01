@@ -453,6 +453,7 @@ impl<'a, C: Channel> Drop for Transfer<'a, C> {
         }
         let regs = self.channel.regs().ch(self.channel.num());
         self.request_stop();
+        fence(Ordering::SeqCst);
         while !regs.sr().read().idlef() {}
         // Temporary reset here
         regs.cr().write(|w| w.set_reset(true));
