@@ -448,6 +448,9 @@ impl<'a, C: Channel> Transfer<'a, C> {
 
 impl<'a, C: Channel> Drop for Transfer<'a, C> {
     fn drop(&mut self) {
+        if self.channel.num() > 8 {
+            hprintln!("D{}", self.channel.num());
+        }
         self.request_stop();
         while self.is_running() {}
 
