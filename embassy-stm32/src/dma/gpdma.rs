@@ -449,10 +449,14 @@ impl<'a, C: Channel> Transfer<'a, C> {
 impl<'a, C: Channel> Drop for Transfer<'a, C> {
     fn drop(&mut self) {
         if self.channel.num() > 8 {
-            hprintln!("D{}", self.channel.num());
+            // hprintln!("D{}", self.channel.num());
         }
+        let regs = self.channel.regs().ch(self.channel.num());
         self.request_stop();
-        while self.is_running() {}
+        while !regs.sr().read().idlef() {}
+        // Temporary reset here
+        regs.cr().write(|w| w.set_reset(true));
+        while regs.cr().read().en() {}
 
         // "Subsequent reads and writes cannot be moved ahead of preceding reads."
         fence(Ordering::SeqCst);
