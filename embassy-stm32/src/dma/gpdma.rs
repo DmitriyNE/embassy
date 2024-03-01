@@ -413,7 +413,10 @@ impl<'a, C: Channel> Transfer<'a, C> {
     /// This doesn't immediately stop the transfer, you have to wait until [`is_running`](Self::is_running) returns false.
     pub fn request_stop(&mut self) {
         let ch = self.channel.regs().ch(self.channel.num());
-        ch.cr().modify(|w| {
+        // cr().modify with SUSP=1 and other bits not equal to 0
+        // does not work for some reason, so cr().modify()
+        // changed to cr().write()
+        ch.cr().write(|w| {
             w.set_susp(true);
         })
     }
@@ -425,7 +428,7 @@ impl<'a, C: Channel> Transfer<'a, C> {
     pub fn is_running(&mut self) -> bool {
         let ch = self.channel.regs().ch(self.channel.num());
         let sr = ch.sr().read();
-        !sr.tcf() && !sr.suspf()
+        !sr.idlef()
     }
 
     /// Gets the total remaining transfers for the channel
@@ -448,22 +451,8 @@ impl<'a, C: Channel> Transfer<'a, C> {
 
 impl<'a, C: Channel> Drop for Transfer<'a, C> {
     fn drop(&mut self) {
-        if self.channel.num() > 8 {
-            // hprintln!("D{}", self.channel.num());
-        }
-
-        let regs = self.channel.regs().ch(self.channel.num());
-        // self.request_stop();
-        regs.cr().modify(|m| {
-            m.set_susp(true);
-            m.set_en(false);
-            m.set_reset(false);
-        });
-        while !regs.sr().read().idlef() {}
-
-        // Temporary reset here
-        regs.cr().write(|w| w.set_reset(true));
-        while regs.cr().read().en() {}
+        self.request_stop();
+        while self.is_running() {}
 
         // "Subsequent reads and writes cannot be moved ahead of preceding reads."
         fence(Ordering::SeqCst);
