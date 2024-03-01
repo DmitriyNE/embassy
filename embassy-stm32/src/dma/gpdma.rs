@@ -455,11 +455,13 @@ impl<'a, C: Channel> Drop for Transfer<'a, C> {
         if self.channel.num() > 8 {
             hprintln!("IF: {}", regs.sr().read().idlef());
         }
-        self.request_stop();
+        // self.request_stop();
+        fence(Ordering::SeqCst);
+        regs.cr().write(|w| w.set_susp(true));
+        fence(Ordering::SeqCst);
         if self.channel.num() > 8 {
             hprintln!("IF: {}", regs.sr().read().idlef());
         }
-        fence(Ordering::SeqCst);
         while !regs.sr().read().idlef() {}
         if self.channel.num() > 8 {
             hprintln!("IF: {}", regs.sr().read().idlef());
