@@ -457,6 +457,7 @@ impl<'a, C: Channel> Drop for Transfer<'a, C> {
         while !regs.sr().read().idlef() {}
         // Temporary reset here
         regs.cr().write(|w| w.set_reset(true));
+        fence(Ordering::SeqCst);
         while regs.cr().read().en() {}
 
         // "Subsequent reads and writes cannot be moved ahead of preceding reads."
