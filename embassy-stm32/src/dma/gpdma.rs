@@ -454,7 +454,11 @@ impl<'a, C: Channel> Drop for Transfer<'a, C> {
 
         let regs = self.channel.regs().ch(self.channel.num());
         // self.request_stop();
-        regs.cr().write(|w| w.set_susp(true));
+        regs.cr().modify(|m| {
+            m.set_susp(true);
+            m.set_en(false);
+            m.set_reset(false);
+        });
         while !regs.sr().read().idlef() {}
 
         // Temporary reset here
