@@ -452,20 +452,11 @@ impl<'a, C: Channel> Drop for Transfer<'a, C> {
             // hprintln!("D{}", self.channel.num());
         }
         let regs = self.channel.regs().ch(self.channel.num());
-        if self.channel.num() > 8 {
-            hprintln!("IF: {}", regs.sr().read().idlef());
-        }
         // self.request_stop();
         fence(Ordering::SeqCst);
         regs.cr().write(|w| w.set_susp(true));
         fence(Ordering::SeqCst);
-        if self.channel.num() > 8 {
-            hprintln!("IF: {}", regs.sr().read().idlef());
-        }
         while !regs.sr().read().idlef() {}
-        if self.channel.num() > 8 {
-            hprintln!("IF: {}", regs.sr().read().idlef());
-        }
         // Temporary reset here
         regs.cr().write(|w| w.set_reset(true));
         fence(Ordering::SeqCst);
