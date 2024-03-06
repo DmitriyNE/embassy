@@ -131,19 +131,6 @@ impl<'d, T: Instance> Adc<'d, T> {
             panic!("Maximal allowed frequency for the ADC is {} MHz and it varies with different packages, refer to ST docs for more information.", MAX_ADC_CLK_FREQ.0 /  1_000_000 );
         }
 
-        #[cfg(stm32h7)]
-        {
-            let boost = if frequency < Hertz::khz(6_250) {
-                Boost::LT6_25
-            } else if frequency < Hertz::khz(12_500) {
-                Boost::LT12_5
-            } else if frequency < Hertz::mhz(25) {
-                Boost::LT25
-            } else {
-                Boost::LT50
-            };
-            T::regs().cr().modify(|w| w.set_boost(boost));
-        }
         let mut s = Self {
             adc,
             sample_time: Default::default(),
@@ -174,7 +161,8 @@ impl<'d, T: Instance> Adc<'d, T> {
             reg.set_advregen(true);
         });
 
-        delay.delay_us(10);
+        // delay.delay_us(10);
+        while !T::regs().isr().read().ldordy() {}
     }
 
     fn configure_differential_inputs(&mut self) {
