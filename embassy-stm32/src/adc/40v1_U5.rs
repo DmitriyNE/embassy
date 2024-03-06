@@ -187,7 +187,7 @@ impl<'d, T: Instance> Adc<'d, T> {
         T::regs().isr().write(|w| w.set_adrdy(true));
         T::regs().cr().modify(|w| w.set_aden(true));
         while !T::regs().isr().read().adrdy() {}
-        T::regs().isr().write(|w| w.set_adrdy(true));
+        // T::regs().isr().write(|w| w.set_adrdy(true));
     }
 
     fn configure(&mut self) {
