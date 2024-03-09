@@ -85,7 +85,7 @@ impl<'d, T: Instance> Rng<'d, T> {
     pub fn reset(&mut self) {
         T::regs().cr().write(|reg| {
             reg.set_condrst(true);
-            reg.set_nistc(pac::rng::vals::Nistc::CUSTOM);
+            reg.set_nistc(pac::rng::vals::Nistc::DEFAULT);
             // set RNG config "A" according to reference manual
             // this has to be written within the same write access as setting the CONDRST bit
             reg.set_rng_config1(pac::rng::vals::RngConfig1::CONFIGA);
@@ -94,20 +94,27 @@ impl<'d, T: Instance> Rng<'d, T> {
             reg.set_rng_config3(pac::rng::vals::RngConfig3::CONFIGA);
             reg.set_ced(true);
             reg.set_ie(false);
-            reg.set_rngen(true);
+            reg.set_rngen(false);
         });
         T::regs().cr().modify(|reg| {
             reg.set_ced(false);
         });
         // wait for CONDRST to be set
         while !T::regs().cr().read().condrst() {}
-        // magic number must be written immediately before every read or write access to HTCR
-        T::regs().htcr().write(|w| w.set_htcfg(pac::rng::vals::Htcfg::MAGIC));
-        // write recommended value according to reference manual
-        // note: HTCR can only be written during conditioning
-        T::regs()
-            .htcr()
-            .write(|w| w.set_htcfg(pac::rng::vals::Htcfg::RECOMMENDED));
+        if cfg!(rng_v4) {
+            T::regs()
+                .htcr()
+                .write(|w| w.set_htcfg(pac::rng::vals::Htcfg::RECOMMENDEDA));
+            T::regs().sr().modify(|w| w.set_ceis(false));
+        } else {
+            // magic number must be written immediately before every read or write access to HTCR
+            T::regs().htcr().write(|w| w.set_htcfg(pac::rng::vals::Htcfg::MAGIC));
+            // write recommended value according to reference manual
+            // note: HTCR can only be written during conditioning
+            T::regs()
+                .htcr()
+                .write(|w| w.set_htcfg(pac::rng::vals::Htcfg::RECOMMENDED));
+        }
         // finish conditioning
         T::regs().cr().modify(|reg| {
             reg.set_rngen(true);
