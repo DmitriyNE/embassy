@@ -140,7 +140,11 @@ impl Prescaler {
 
 impl<'d, T: Instance> Adc<'d, T> {
     /// Create a new ADC driver.
-    pub fn new(adc: impl Peripheral<P = T> + 'd, delay: &mut impl DelayUs<u16>) -> Self {
+    pub fn new(
+        adc: impl Peripheral<P = T> + 'd,
+        delay: &mut impl DelayUs<u16>,
+        _irq: impl interrupt::typelevel::Binding<T::Interrupt, InterruptHandler<T>> + 'd,
+    ) -> Self {
         embassy_hal_internal::into_ref!(adc);
         T::enable_and_reset();
 
@@ -167,6 +171,9 @@ impl<'d, T: Instance> Adc<'d, T> {
 
         s.enable();
         s.configure();
+
+        T::Interrupt::unpend();
+        unsafe { T::Interrupt::enable() };
 
         s
     }
@@ -363,7 +370,6 @@ impl<'d, T: Instance> Adc<'d, T> {
 
         poll_fn(|cx| {
             if T::regs().isr().read().eoc() {
-                T::regs().ier().modify(|m| m.set_eocie(false));
                 Poll::Ready(T::regs().dr().read().0)
             } else {
                 T::regs().ier().modify(|m| m.set_eocie(true));
