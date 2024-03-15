@@ -1,11 +1,35 @@
+use core::future::poll_fn;
+
+use embassy_sync::waitqueue::AtomicWaker;
 use embedded_hal_02::blocking::delay::DelayUs;
 #[allow(unused)]
 use pac::adc::vals::{Difsel, Exten, Pcsel};
 use pac::adccommon::vals::Presc;
 
+use core::marker::PhantomData;
+use core::task::Poll;
+
 use super::{Adc, AdcPin, Instance, InternalChannel, Resolution, SampleTime};
+use crate::interrupt;
+use crate::interrupt::typelevel::Interrupt;
 use crate::time::Hertz;
 use crate::{pac, Peripheral};
+
+static ADC_WAKER: AtomicWaker = AtomicWaker::new();
+
+pub struct InterruptHandler<T: Instance> {
+    _phantom: PhantomData<T>,
+}
+
+impl<T: Instance> interrupt::typelevel::Handler<T::Interrupt> for InterruptHandler<T> {
+    unsafe fn on_interrupt() {
+        let bits = T::regs().isr().read();
+        if bits.eoc() {
+            T::regs().ier().modify(|m| m.set_eocie(false));
+            ADC_WAKER.wake();
+        }
+    }
+}
 
 /// Default VREF voltage used for sample conversion to millivolts.
 pub const VREF_DEFAULT_MV: u32 = 1800;
@@ -249,7 +273,6 @@ impl<'d, T: Instance> Adc<'d, T> {
     /// Perform a single conversion.
     fn convert(&mut self) -> u32 {
         T::regs().isr().modify(|reg| {
-            reg.set_eos(true);
             reg.set_eoc(true);
         });
 
@@ -258,9 +281,13 @@ impl<'d, T: Instance> Adc<'d, T> {
             reg.set_adstart(true);
         });
 
-        while !T::regs().isr().read().eos() {
+        while !T::regs().isr().read().eoc() {
             // spin
         }
+
+        T::regs().isr().modify(|reg| {
+            reg.set_eoc(true);
+        });
 
         T::regs().dr().read().0 as u32
     }
@@ -276,9 +303,23 @@ impl<'d, T: Instance> Adc<'d, T> {
         self.read_channel(pin.channel())
     }
 
+    pub async fn read_async<P>(&mut self, pin: &mut P) -> u32
+    where
+        P: AdcPin<T>,
+        P: crate::gpio::sealed::Pin,
+    {
+        pin.set_as_analog();
+
+        self.read_channel_async(pin.channel()).await
+    }
+
     /// Read an ADC internal channel.
     pub fn read_internal(&mut self, channel: &mut impl InternalChannel<T>) -> u32 {
         self.read_channel(channel.channel())
+    }
+
+    pub async fn read_internal_async(&mut self, channel: &mut impl InternalChannel<T>) -> u32 {
+        self.read_channel_async(channel.channel()).await
     }
 
     pub fn read_channel(&mut self, channel: u8) -> u32 {
@@ -296,6 +337,41 @@ impl<'d, T: Instance> Adc<'d, T> {
         });
 
         self.convert()
+    }
+
+    pub async fn read_channel_async(&mut self, channel: u8) -> u32 {
+        Self::set_channel_sample_time(channel, self.sample_time);
+
+        T::regs().cfgr2().modify(|w| w.set_lshift(0));
+        T::regs()
+            .pcsel()
+            .write(|w| w.set_pcsel(channel as _, Pcsel::PRESELECTED));
+
+        T::regs().sqr1().write(|reg| {
+            reg.set_sq(0, channel);
+            reg.set_l(0);
+        });
+
+        T::regs().isr().modify(|reg| {
+            reg.set_eoc(true);
+        });
+
+        // Start conversion
+        T::regs().cr().modify(|reg| {
+            reg.set_adstart(true);
+        });
+
+        poll_fn(|cx| {
+            if T::regs().isr().read().eoc() {
+                T::regs().ier().modify(|m| m.set_eocie(false));
+                Poll::Ready(T::regs().dr().read().0)
+            } else {
+                T::regs().ier().modify(|m| m.set_eocie(true));
+                ADC_WAKER.register(cx.waker());
+                Poll::Pending
+            }
+        })
+        .await
     }
 
     fn set_channel_sample_time(ch: u8, sample_time: SampleTime) {
