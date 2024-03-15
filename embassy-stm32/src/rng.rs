@@ -101,12 +101,15 @@ impl<'d, T: Instance> Rng<'d, T> {
         });
         // wait for CONDRST to be set
         while !T::regs().cr().read().condrst() {}
-        if cfg!(rng_v4) {
+        #[cfg(rng_v4)]
+        {
             T::regs()
                 .htcr()
                 .write(|w| w.set_htcfg(pac::rng::vals::Htcfg::RECOMMENDEDA));
             T::regs().sr().modify(|w| w.set_ceis(false));
-        } else {
+        }
+        #[cfg(not(rng_v4))]
+        {
             // magic number must be written immediately before every read or write access to HTCR
             T::regs().htcr().write(|w| w.set_htcfg(pac::rng::vals::Htcfg::MAGIC));
             // write recommended value according to reference manual
