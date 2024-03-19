@@ -2,6 +2,8 @@ use core::future::poll_fn;
 
 use embassy_sync::waitqueue::AtomicWaker;
 use embedded_hal_02::blocking::delay::DelayUs;
+use pac::adc::regs::{Smpr, Sqr1};
+use pac::adc::vals::Adstp;
 #[allow(unused)]
 use pac::adc::vals::{Difsel, Exten, Pcsel};
 use pac::adccommon::vals::Presc;
@@ -10,9 +12,9 @@ use core::marker::PhantomData;
 use core::task::Poll;
 
 use super::{Adc, AdcPin, Instance, InternalChannel, Resolution, SampleTime};
-use crate::interrupt;
 use crate::interrupt::typelevel::Interrupt;
 use crate::time::Hertz;
+use crate::{dma, interrupt};
 use crate::{pac, Peripheral};
 
 static ADC_WAKER: AtomicWaker = AtomicWaker::new();
@@ -378,6 +380,67 @@ impl<'d, T: Instance> Adc<'d, T> {
             }
         })
         .await
+    }
+
+    pub async fn fill_buffer_async<P, D, DCH>(
+        &mut self,
+        buf: &mut [u32],
+        channels: &[(&dyn AdcPin<T>, SampleTime)],
+        dma_channel: impl Peripheral<P = D>,
+    ) where
+        D: dma::Channel,
+    {
+        assert!(channels.len() <= 16);
+
+        for (idx, c) in channels.iter().enumerate() {
+            Self::set_channel_sample_time(c.0.channel(), c.1);
+            Self::set_sqr(idx, c.0.channel());
+            T::regs()
+                .pcsel()
+                .modify(|m| m.set_pcsel(c.0.channel() as usize, Pcsel::PRESELECTED));
+        }
+
+        T::regs().sqr1().modify(|m| m.set_l(channels.len() as u8));
+        T::regs().cfgr2().modify(|w| w.set_lshift(0));
+        T::regs().cfgr().modify(|w| {
+            w.set_dmngt(pac::adc::vals::Dmngt::DMA_ONESHOT);
+            w.set_cont(true)
+        });
+
+        const ADC_DMA_REQUEST: u8 = 0; // WARNING: HARDCODED REQUEST ID THIS TIME
+        let transfer = unsafe {
+            dma::Transfer::new_read(
+                dma_channel,
+                ADC_DMA_REQUEST,
+                T::regs().dr().as_ptr() as *mut u32,
+                buf,
+                dma::TransferOptions::default(),
+            )
+        };
+
+        T::regs().cr().modify(|reg| {
+            reg.set_adstart(true);
+        });
+
+        transfer.await;
+
+        T::regs().cr().modify(|reg| {
+            reg.set_adstp(Adstp::STOP);
+        });
+
+        while T::regs().cr().read().adstart() {}
+    }
+
+    fn set_sqr(index: usize, channel: u8) {
+        if index < 4 {
+            T::regs().sqr1().modify(|m| m.set_sq(index, channel));
+        } else if index < 9 {
+            T::regs().sqr2().modify(|m| m.set_sq(index - 4, channel));
+        } else if index < 14 {
+            T::regs().sqr1().modify(|m| m.set_sq(index - 9, channel));
+        } else if index < 16 {
+            T::regs().sqr1().modify(|m| m.set_sq(index - 14, channel));
+        }
     }
 
     fn set_channel_sample_time(ch: u8, sample_time: SampleTime) {
