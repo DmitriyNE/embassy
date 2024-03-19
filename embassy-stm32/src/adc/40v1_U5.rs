@@ -382,7 +382,7 @@ impl<'d, T: Instance> Adc<'d, T> {
         .await
     }
 
-    pub async fn fill_buffer_async<P, D, DCH>(
+    pub async fn fill_buffer_async<D>(
         &mut self,
         buf: &mut [u32],
         channels: &[(&dyn AdcPin<T>, SampleTime)],
