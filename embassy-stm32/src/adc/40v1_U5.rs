@@ -400,7 +400,7 @@ impl<'d, T: Instance> Adc<'d, T> {
                 .modify(|m| m.set_pcsel(c.0.channel() as usize, Pcsel::PRESELECTED));
         }
 
-        T::regs().sqr1().modify(|m| m.set_l(channels.len() as u8));
+        T::regs().sqr1().modify(|m| m.set_l((channels.len() - 1) as u8));
         T::regs().cfgr2().modify(|w| w.set_lshift(0));
         T::regs().cfgr().modify(|w| {
             w.set_dmngt(pac::adc::vals::Dmngt::DMA_ONESHOT);
